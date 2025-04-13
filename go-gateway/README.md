@@ -32,7 +32,7 @@ Funcionalidades pendentes:
 
 ## Arquitetura da aplicação
 
-![Arquitetura](../docs/images/architecture.png)
+![Arquitetura](./docs/images/architecture.png)
 
 ## Pré-requisitos
 
