@@ -17,14 +17,14 @@ Até o momento, conta com as seguintes funcionalidades implementadas:
 
 - Setup e estrutura base do projeto
 - Endpoints de gerenciamento de accounts (criação e consulta)
-
-Funcionalidades pendentes:
-
 - Sistema completo de faturas (invoices) com:
   - Criação e processamento automático de pagamentos
   - Validação de limites (faturas > R$ 10.000 ficam pendentes)
   - Consulta individual e listagem de faturas
   - Atualização automática de saldo da conta
+
+Funcionalidades pendentes:
+
 - Integração com Apache Kafka para:
   - Envio de transações para o microsserviço de antifraude
   - Consumo de respostas do serviço de antifraude
