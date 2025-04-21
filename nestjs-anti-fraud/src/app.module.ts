@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import * as Joi from 'joi';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -18,6 +19,7 @@ import { PrismaModule } from './prisma/prisma.module';
         SUSPICIOUS_TIMEFRAME_HOURS: Joi.number(),
       }),
     }),
+    EventEmitterModule.forRoot(),
     InvoicesModule,
     PrismaModule,
   ],
