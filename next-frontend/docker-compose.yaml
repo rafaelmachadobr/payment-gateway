@@ -1,0 +1,13 @@
+services:
+  nextjs:
+    build: .
+    ports:
+      - 3000:3000
+    volumes:
+      - .:/home/node/app
+    networks:
+      - go-gateway_default
+
+networks:
+  go-gateway_default:
+    external: true
