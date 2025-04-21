@@ -63,7 +63,7 @@ func main() {
 	invoiceService := service.NewInvoiceService(invoiceRepository, *accountService, kafkaProducer)
 
 	// Configura e inicializa o consumidor Kafka
-	consumerTopic := getEnv("KAFKA_CONSUMER_TOPIC", "transaction_results")
+	consumerTopic := getEnv("KAFKA_CONSUMER_TOPIC", "transactions_result")
 	consumerConfig := baseKafkaConfig.WithTopic(consumerTopic)
 	groupID := getEnv("KAFKA_CONSUMER_GROUP_ID", "gateway-group")
 	kafkaConsumer := service.NewKafkaConsumer(consumerConfig, groupID, invoiceService)

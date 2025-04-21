@@ -62,7 +62,7 @@ services:
       bash -c "
         echo 'Iniciando criação dos tópicos...' &&
         kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic pending_transactions --partitions 1 --replication-factor 1 &&
-        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic transaction_results --partitions 1 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic transactions_result --partitions 1 --replication-factor 1 &&
         echo 'Tópicos criados com sucesso!'"
 
   control-center:
