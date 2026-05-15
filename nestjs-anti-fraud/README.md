@@ -1,98 +1,186 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# NestJS Anti-Fraud
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Serviço de detecção de fraude em tempo real. Consome transações pendentes do Kafka, aplica regras de análise e publica o resultado de volta.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Stack
 
-## Description
+- **NestJS** 11 + TypeScript
+- **Prisma** 6 — ORM
+- **PostgreSQL** 16
+- **@confluentinc/kafka-javascript** — cliente Kafka nativo
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Arquitetura interna
 
-## Project setup
+Este serviço roda como **dois processos independentes**:
 
-```bash
-$ npm install
+| Processo | Entrypoint | Função |
+|---|---|---|
+| Servidor HTTP | `src/main.ts` | API REST na porta `3001` |
+| Microserviço Kafka | `src/cmd/kafka.cmd.ts` | Consome `pending_transactions`, publica em `transactions_result` |
+
+Ambos precisam estar rodando para o fluxo de fraude funcionar.
+
+## Como executar
+
+### Pré-requisito
+
+O Go Gateway deve estar no ar (ele cria a rede `go-gateway_default` e o Kafka).
+
+### 1. Variáveis de ambiente
+
+Crie o arquivo `.env` na raiz do serviço:
+
+```env
+DATABASE_URL=postgresql://postgres:root@nestjs-db:5432/mydb
+
+SUSPICIOUS_VARIATION_PERCENTAGE=50
+INVOICES_HISTORY_COUNT=10
+SUSPICIOUS_INVOICES_COUNT=3
+SUSPICIOUS_TIMEFRAME_HOURS=24
 ```
 
-## Compile and run the project
+### 2. Subir os containers
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+docker compose up -d
 ```
 
-## Run tests
+### 3. Instalar dependências e aplicar migrations
 
 ```bash
-# unit tests
-$ npm run test
+docker exec nestjs-anti-fraud-nestjs-1 sh -c "cd /home/node/app && npm install"
 
-# e2e tests
-$ npm run test:e2e
+# Instalar Prisma CLI (não incluso nas deps de produção)
+docker exec nestjs-anti-fraud-nestjs-1 sh -c "cd /home/node/app && npm install prisma@6.6.0 --save-dev"
 
-# test coverage
-$ npm run test:cov
+# Gerar client e aplicar migrations
+docker exec nestjs-anti-fraud-nestjs-1 sh -c "cd /home/node/app && \
+  ./node_modules/.bin/prisma generate && \
+  ./node_modules/.bin/prisma migrate deploy"
 ```
 
-## Deployment
+### 4. Instalar binário nativo do Kafka
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+O módulo `@confluentinc/kafka-javascript` usa um binário nativo que precisa ser baixado separadamente:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+docker exec nestjs-anti-fraud-nestjs-1 sh -c "
+  cd /home/node/app/node_modules/@confluentinc/kafka-javascript &&
+  node ../../.bin/node-pre-gyp install --fallback-to-build"
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 5. Iniciar os dois processos
 
-## Resources
+```bash
+# Processo 1 — servidor HTTP (porta 3001)
+docker exec -d nestjs-anti-fraud-nestjs-1 sh -c \
+  "cd /home/node/app && npm run start:dev > /tmp/nestjs.log 2>&1"
 
-Check out a few resources that may come in handy when working with NestJS:
+# Processo 2 — consumidor Kafka
+docker exec -d nestjs-anti-fraud-nestjs-1 sh -c \
+  "cd /home/node/app && node -e \"require('tsconfig-paths/register'); \
+  require('ts-node').register({transpileOnly:true}); \
+  require('./src/cmd/kafka.cmd.ts')\" > /tmp/nestjs-kafka.log 2>&1"
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## Variáveis de ambiente
 
-## Support
+| Variável | Descrição |
+|---|---|
+| `DATABASE_URL` | Connection string do PostgreSQL |
+| `SUSPICIOUS_VARIATION_PERCENTAGE` | Variação % acima da média que aciona alerta de valor incomum (ex: `50` = 50%) |
+| `INVOICES_HISTORY_COUNT` | Nº de faturas históricas usadas para calcular a média |
+| `SUSPICIOUS_INVOICES_COUNT` | Nº mínimo de faturas recentes para acionar alerta de frequência |
+| `SUSPICIOUS_TIMEFRAME_HOURS` | Janela de tempo em horas para a análise de frequência |
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## Regras de detecção de fraude
 
-## Stay in touch
+As três regras são aplicadas em sequência. Basta uma retornar fraude para a transação ser **rejeitada** e o histórico de fraude ser registrado.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### 1. SuspiciousAccount
 
-## License
+Verifica se a conta já está marcada como suspeita no banco do anti-fraude.
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+```
+Se account.isSuspicious = true → REJEITADO (SUSPICIOUS_ACCOUNT)
+```
+
+### 2. UnusualAmount
+
+Compara o valor da transação com a média histórica da conta.
+
+```
+invoices = últimas INVOICES_HISTORY_COUNT faturas da conta
+média = soma dos valores / quantidade
+
+Se amount > média × (1 + SUSPICIOUS_VARIATION_PERCENTAGE / 100):
+  → REJEITADO (UNUSUAL_PATTERN)
+```
+
+> Essa regra só é avaliada se a conta já tiver faturas anteriores.
+
+### 3. FrequentHighValue
+
+Detecta muitas transações de alto valor em curto intervalo de tempo.
+
+```
+recentes = faturas da conta nos últimos SUSPICIOUS_TIMEFRAME_HOURS horas
+
+Se recentes.length >= SUSPICIOUS_INVOICES_COUNT:
+  → marca account.isSuspicious = true
+  → REJEITADO (FREQUENT_HIGH_VALUE)
+```
+
+## API Endpoints
+
+### `GET /invoices` — Listar faturas processadas
+
+```http
+GET /invoices
+GET /invoices?account_id={uuid}
+GET /invoices?with_fraud=true
+GET /invoices?with_fraud=true&account_id={uuid}
+```
+
+- `account_id` filtra por conta
+- `with_fraud=true` retorna apenas faturas com status `REJECTED`
+
+**Resposta `200`:**
+```json
+[
+  {
+    "id": "uuid",
+    "accountId": "uuid",
+    "amount": 15000.0,
+    "status": "APPROVED",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z",
+    "account": {
+      "id": "uuid",
+      "isSuspicious": false,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    }
+  }
+]
+```
+
+### `GET /invoices/:id` — Consultar fatura por ID
+
+```http
+GET /invoices/{uuid}
+```
+
+**Resposta `200`:** mesmo formato acima (objeto único). Retorna `null` se não encontrada.
+
+## Banco de dados
+
+Schema gerenciado pelo Prisma (`prisma/schema.prisma`). As IDs de `Account` e `Invoice` espelham as do Go Gateway — são os mesmos UUIDs.
+
+```
+Account      — espelho das contas do gateway, com flag isSuspicious
+Invoice      — transações processadas (status: APPROVED | REJECTED)
+FraudHistory — registrado apenas quando hasFraud = true, contém razão e descrição
+```
+
+**Razões de fraude:** `SUSPICIOUS_ACCOUNT` | `UNUSUAL_PATTERN` | `FREQUENT_HIGH_VALUE`

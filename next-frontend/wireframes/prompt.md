@@ -339,7 +339,7 @@ Crie 4 telas
 - Outra para mostrar os detalhes de uma invoice
 - Uma para mostrar o pagamento, que seria a criação da invoice
 
-todas as telas devem ter um navbar superior que do lado esquerdo vai mostrar Full Cycle Gateway e do lado direito vai mostrar "Olá, usuário" e um botão de logout
+todas as telas devem ter um navbar superior que do lado esquerdo vai mostrar Payment Gateway e do lado direito vai mostrar "Olá, usuário" e um botão de logout
 
 - o tema da páginas devem ser dark
 - cada página deve ocupar um frame

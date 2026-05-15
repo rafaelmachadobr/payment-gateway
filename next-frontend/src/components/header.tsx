@@ -20,7 +20,7 @@ export async function Header() {
     <header className="bg-[#1a2332] border-b border-gray-800 p-4">
       <div className="container mx-auto flex justify-between items-center">
         <Link href="/" className="text-white text-xl font-bold">
-          Full Cycle Gateway
+          Payment Gateway
         </Link>
 
         {isAuthPage && (

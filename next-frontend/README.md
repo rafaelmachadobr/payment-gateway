@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Next.js Frontend
 
-## Getting Started
+Interface web para acompanhamento e submissão de faturas.
 
-First, run the development server:
+## Stack
+
+- **Next.js** 15 + React 19
+- **TypeScript**
+- **Tailwind CSS** 4
+- **Radix UI** — componentes acessíveis
+
+## Como executar
+
+### Pré-requisito
+
+O Go Gateway deve estar no ar em `http://app:8080` dentro da rede Docker (hostname `app` é o serviço definido no `docker-compose.yaml` do go-gateway).
+
+### 1. Subir o container
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+docker compose up -d
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Instalar dependências e iniciar
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+docker exec next-frontend-nextjs-1 sh -c "cd /home/node/app && npm install && npm run dev"
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Acesse em `http://localhost:3000`.
 
-## Learn More
+## Rotas
 
-To learn more about Next.js, take a look at the following resources:
+| Rota | Descrição | Middleware |
+|---|---|---|
+| `/` | Redireciona para `/login` | — |
+| `/login` | Autenticação via API Key | — |
+| `/invoices` | Listar faturas da conta | Requer cookie `apiKey` |
+| `/invoices/create` | Criar nova fatura | Requer cookie `apiKey` |
+| `/invoices/[id]` | Detalhe de uma fatura | Requer cookie `apiKey` |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Rotas sob `/invoices/*` são protegidas pelo middleware Next.js (`src/middleware.ts`): se o cookie `apiKey` não existir, o usuário é redirecionado para `/login`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Autenticação
 
-## Deploy on Vercel
+O frontend não cria contas. O fluxo de login é:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Usuário acessa `/login` e informa sua **API Key** (obtida ao criar uma conta via `POST /accounts` no Go Gateway)
+2. O frontend valida a API Key chamando `GET /accounts` com o header `X-API-Key`
+3. Se válida, a API Key é armazenada no cookie `apiKey`
+4. Todas as requisições seguintes leem o cookie e o enviam como header `X-API-Key` para o Go Gateway
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Comunicação com o backend
+
+Todas as chamadas são feitas para o Go Gateway. Dentro da rede Docker, o host é `app:8080`:
+
+| Ação | Chamada |
+|---|---|
+| Validar API Key no login | `GET http://app:8080/accounts` |
+| Listar faturas | `GET http://app:8080/accounts` (dados da conta) |
+| Criar fatura | `POST http://app:8080/invoice` |
+| Detalhe de fatura | `GET http://app:8080/invoice/{id}` |
